@@ -1,0 +1,27 @@
+{
+  "name": "@stockpilot/server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/main.ts",
+    "start": "bun src/main.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "bun src/infrastructure/db/migrate.ts",
+    "seed": "bun src/seed.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "^0.9.1",
+    "drizzle-orm": "^0.45.4",
+    "hono": "^4.13.19",
+    "pino": "^10.4.0",
+    "postgres": "^3.4.9",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4",
+    "drizzle-kit": "^0.31.11",
+    "typescript": "^7.0.2"
+  }
+}

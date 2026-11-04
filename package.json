@@ -1,0 +1,14 @@
+{
+  "name": "stockpilot",
+  "private": true,
+  "workspaces": ["server", "web"],
+  "scripts": {
+    "dev:server": "bun run --cwd server dev",
+    "dev:web": "bun run --cwd web dev",
+    "db:migrate": "bun run --cwd server db:migrate",
+    "seed": "bun run --cwd server seed",
+    "test": "bun run --cwd server test && bun run --cwd web test",
+    "typecheck": "bun run --cwd server typecheck && bun run --cwd web typecheck",
+    "build": "bun run --cwd web build"
+  }
+}
