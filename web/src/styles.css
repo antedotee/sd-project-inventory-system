@@ -1,0 +1,78 @@
+@import "tailwindcss";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+
+/*
+ * StockPilot tokens. Direction: a stockroom ledger. Label-paper surfaces,
+ * stencil-ink text, steel-grey structure, and one accent (safety amber)
+ * reserved for "needs attention". See web/DESIGN.md for the reasoning.
+ */
+@theme {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* Surfaces: one warm hue, shifted only in lightness. */
+  --color-paper: oklch(97.6% 0.006 85);       /* page canvas */
+  --color-sheet: oklch(99.4% 0.003 85);       /* tables, panels, dialogs */
+  --color-well: oklch(95.4% 0.006 85);        /* inputs: inset, slightly darker */
+  --color-shelf: oklch(93.5% 0.007 85);       /* hover rows, header band */
+
+  /* Ink: four levels of text. */
+  --color-ink: oklch(22% 0.01 70);
+  --color-ink-2: oklch(40% 0.01 70);
+  --color-ink-3: oklch(54% 0.01 70);
+  --color-ink-4: oklch(68% 0.008 70);
+
+  /* Structure: low-contrast rules that disappear until needed. */
+  --color-rule: oklch(22% 0.01 70 / 0.1);
+  --color-rule-strong: oklch(22% 0.01 70 / 0.18);
+
+  /* The single accent, and status colours. */
+  --color-amber: oklch(76% 0.15 75);          /* safety amber: low stock, attention */
+  --color-amber-ink: oklch(45% 0.1 65);
+  --color-amber-wash: oklch(95% 0.045 85);
+  --color-go: oklch(52% 0.11 150);            /* fulfilled / healthy */
+  --color-go-wash: oklch(95.5% 0.03 150);
+  --color-stop: oklch(52% 0.17 28);           /* errors, destructive */
+  --color-stop-wash: oklch(95.5% 0.03 28);
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button, a, input, select, label {
+    touch-action: manipulation; /* no double-tap zoom delay */
+  }
+  body {
+    @apply bg-paper text-ink font-sans text-sm;
+  }
+  h1, h2, h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+}
+
+/* Reserved stock is drawn as hatching: "on the shelf, but promised". */
+.hatch {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--color-ink-3) 0 2px,
+    transparent 2px 5px
+  );
+}
