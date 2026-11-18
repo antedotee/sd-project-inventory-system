@@ -1,0 +1,46 @@
+# Production-style deployment: app + Postgres. Secrets come from the
+# environment (or an untracked .env file next to this one); compose refuses
+# to start if a required one is missing.
+#
+#   POSTGRES_PASSWORD=... ADMIN_EMAIL=... ADMIN_PASSWORD=... \
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Put a TLS-terminating reverse proxy in front for real use; APP_ORIGIN must
+# be the public https:// origin users open in their browser.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: stockpilot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: stockpilot
+    volumes:
+      - pgdata-prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stockpilot -d stockpilot"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # No published port: only the app can reach the database.
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://stockpilot:${POSTGRES_PASSWORD}@db:5432/stockpilot
+      DB_POOL_SIZE: 10
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:8080}
+      LOG_LEVEL: info
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?set ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD}
+    ports:
+      - "8080:3000"
+    stop_grace_period: 15s
+
+volumes:
+  pgdata-prod:
