@@ -1,6 +1,6 @@
 # 7. Database schema
 
-PostgreSQL 16. Tables are defined in `server/src/infrastructure/db/schema.ts` (Drizzle). Migrations: `server/drizzle/0000_init.sql` (generated) and `server/drizzle/0001_ledger_and_search.sql` (hand-written: append-only trigger, trigram index). They are applied on every start; already-applied migrations are skipped.
+PostgreSQL 16. Tables are defined in `server/src/infrastructure/db/schema.ts` (Drizzle). Migrations: `server/drizzle/0000_init.sql` (generated), `server/drizzle/0001_ledger_and_search.sql` (hand-written: append-only trigger, trigram index), and `server/drizzle/0002_drop_idempotency.sql` (drops the unused idempotency table). They are applied on every start; already-applied migrations are skipped.
 
 ## ER diagram
 
@@ -9,7 +9,6 @@ erDiagram
   users ||--o{ sessions : "has"
   users ||--o{ orders : "created_by"
   users ||--o{ stock_movements : "actor_id"
-  users ||--o{ idempotency_keys : "owns"
   users |o--o{ low_stock_alerts : "acknowledged_by"
   categories |o--o{ products : "category_id (SET NULL)"
   products ||--|| stock_levels : "product_id (PK = FK)"
@@ -92,15 +91,6 @@ erDiagram
     timestamptz acknowledged_at
     timestamptz resolved_at
   }
-  idempotency_keys {
-    uuid user_id PK, FK
-    text key PK
-    text request_hash
-    idempotency_status status
-    int response_status
-    jsonb response_body
-    timestamptz created_at "indexed"
-  }
 ```
 
 ## Class → table mapping
@@ -115,7 +105,6 @@ erDiagram
 | `StockMovement` hierarchy | `stock_movements` | Single-table inheritance: `type` column chooses the subclass via `StockMovementFactory.fromLedger`. `quantity` stores `delta()`, so `SUM(quantity) = on_hand`. |
 | `Order` / `OrderLine` | `orders` / `order_lines` | Composition maps to `ON DELETE CASCADE`; composite PK `(order_id, product_id)` also enforces "one line per product". |
 | `LowStockAlert` | `low_stock_alerts` | |
-| `IdempotencyRecord` | `idempotency_keys` | |
 
 ## Keys, constraints and why
 
@@ -127,7 +116,6 @@ erDiagram
 | Ledger rows are never edited or deleted | trigger `stock_movements_append_only` (BEFORE UPDATE OR DELETE) |
 | At most one OPEN alert per product, even with concurrent listeners | partial unique index `alerts_one_open_per_product_uq ON (product_id) WHERE status='OPEN'` |
 | A product with history cannot be hard-deleted | `ON DELETE RESTRICT` from `stock_levels`, `stock_movements`, `order_lines` (products are soft-deleted via `active`) |
-| An idempotency key is per user | PK `(user_id, key)` |
 | Order numbers are unique and gap-tolerant | sequence `order_number_seq` + `orders_number_uq` |
 
 ## Indexes and the query each one serves
@@ -143,7 +131,6 @@ erDiagram
 | `order_lines_product_idx` | FK checks; "orders containing product" |
 | `alerts_status_created_idx` | alerts list by status |
 | `sessions_expires_at_idx` | housekeeping `DELETE … WHERE expires_at <= now()` |
-| `idempotency_created_idx` | housekeeping of keys older than 24 h |
 
 ## Concurrency model
 - Isolation: READ COMMITTED (the Postgres default) with explicit row locks.

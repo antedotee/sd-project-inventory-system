@@ -4,7 +4,7 @@
  */
 import type { LowStockAlert } from '../domain/low-stock-alert';
 import { Order, OrderLine } from '../domain/order';
-import { type Product, ProductBuilder } from '../domain/product';
+import { Product } from '../domain/product';
 import { type ReorderPolicyConfig, reorderPolicyFrom } from '../domain/reorder-policy';
 import { StockLevel } from '../domain/stock-level';
 import { type StockMovement, StockMovementFactory } from '../domain/stock-movement';
@@ -32,18 +32,19 @@ export const productMapper = {
       r.reorderPolicy === 'FIXED'
         ? { kind: 'FIXED', reorderPoint: r.reorderPoint! }
         : { kind: 'PERCENT_OF_MAX', maxStock: r.maxStock!, percent: r.reorderPercent! };
-    return new ProductBuilder()
-      .id(r.id)
-      .sku(r.sku)
-      .name(r.name)
-      .description(r.description)
-      .category(r.categoryId)
-      .unitPriceCents(r.unitPriceCents)
-      .reorderPolicy(reorderPolicyFrom(config))
-      .active(r.active)
-      .version(r.version)
-      .timestamps(r.createdAt, r.updatedAt)
-      .build();
+    return Product.create({
+      id: r.id,
+      sku: r.sku,
+      name: r.name,
+      description: r.description,
+      categoryId: r.categoryId,
+      unitPriceCents: r.unitPriceCents,
+      reorderPolicy: reorderPolicyFrom(config),
+      active: r.active,
+      version: r.version,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+    });
   },
 
   toRow(p: Product): ProductInsert {

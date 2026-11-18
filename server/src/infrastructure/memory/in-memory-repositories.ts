@@ -12,7 +12,7 @@ import type {
   UserRepository,
 } from '../../application/repositories';
 import { DuplicateError } from '../../domain/errors';
-import { type Product, ProductBuilder } from '../../domain/product';
+import { type Product } from '../../domain/product';
 import type { User } from '../../domain/user';
 
 export class InMemoryUserRepository implements UserRepository {
@@ -96,10 +96,7 @@ export class InMemoryProductRepository implements ProductRepository {
   async update(product: Product, expectedVersion: number) {
     const current = this.rows.get(product.id);
     if (!current || current.version !== expectedVersion) return null;
-    const saved = ProductBuilder.from(product)
-      .version(expectedVersion + 1)
-      .timestamps(product.createdAt, new Date())
-      .build();
+    const saved = product.with({ version: expectedVersion + 1, updatedAt: new Date() });
     this.rows.set(saved.id, saved);
     return saved;
   }

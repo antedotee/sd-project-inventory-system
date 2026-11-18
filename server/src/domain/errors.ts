@@ -11,7 +11,6 @@ export type ErrorKind =
   | 'forbidden'
   | 'not_found'
   | 'conflict'
-  | 'unprocessable'
   | 'rate_limited';
 
 export abstract class AppError extends Error {
@@ -95,21 +94,6 @@ export class InvalidStateTransitionError extends ConflictError {
   readonly code = 'INVALID_STATE_TRANSITION';
   constructor(entity: string, from: string, to: string) {
     super(`${entity} cannot go from ${from} to ${to}`, { from, to });
-  }
-}
-
-export class IdempotencyInProgressError extends ConflictError {
-  readonly code = 'IDEMPOTENCY_IN_PROGRESS';
-  constructor() {
-    super('A request with this Idempotency-Key is still being processed');
-  }
-}
-
-export class IdempotencyKeyMismatchError extends AppError {
-  readonly kind = 'unprocessable';
-  readonly code = 'IDEMPOTENCY_KEY_REUSED';
-  constructor() {
-    super('This Idempotency-Key was already used with a different request body');
   }
 }
 

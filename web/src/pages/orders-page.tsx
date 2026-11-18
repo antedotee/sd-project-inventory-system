@@ -23,7 +23,6 @@ import {
 } from '../components/ui';
 import { api, ApiError, fieldErrors, queryString } from '../lib/api';
 import { cn, formatCount, formatDateTime, formatMoney } from '../lib/format';
-import { IdempotentSubmission } from '../lib/idempotency';
 import type { Order, OrderStatus, OrderSummary, Page, StockRow } from '../lib/types';
 
 const PAGE_SIZE = 20;
@@ -192,7 +191,6 @@ export function lineErrorFor(error: unknown, productId: string): string | undefi
 
 export function NewOrderDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (order: Order) => void }) {
   const queryClient = useQueryClient();
-  const submission = useRef(new IdempotentSubmission());
   const nextKey = useRef(1);
   const [lines, setLines] = useState<DraftLine[]>([{ key: 0, productId: '', quantity: '1' }]);
   const [submitted, setSubmitted] = useState(false);
@@ -204,19 +202,12 @@ export function NewOrderDialog({ onClose, onCreated }: { onClose: () => void; on
   const byId = new Map(stock.data?.items.map((r) => [r.productId, r]));
 
   const place = useMutation({
-    mutationFn: (payload: { lines: { productId: string; quantity: number }[] }) =>
-      api.post<Order>('/orders', payload, { 'Idempotency-Key': submission.current.keyFor(payload) }),
+    mutationFn: (payload: { lines: { productId: string; quantity: number }[] }) => api.post<Order>('/orders', payload),
     onSuccess: (order) => {
-      submission.current.settle();
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
       void queryClient.invalidateQueries({ queryKey: ['stock'] });
       void queryClient.invalidateQueries({ queryKey: ['alerts'] });
       onCreated(order);
-    },
-    onError: (err) => {
-      // Final answers (4xx) end this submission. Network errors / 5xx keep
-      // the key, so pressing the button again is a safe retry.
-      if (err instanceof ApiError && !err.retryable) submission.current.settle();
     },
   });
 
@@ -241,11 +232,7 @@ export function NewOrderDialog({ onClose, onCreated }: { onClose: () => void; on
 
   const err = place.error;
   const formError =
-    err instanceof ApiError && err.code !== 'INSUFFICIENT_STOCK' && err.code !== 'VALIDATION_FAILED'
-      ? err.retryable
-        ? `${err.message} Your order was not duplicated; press “Place order” again to retry.`
-        : err.message
-      : null;
+    err instanceof ApiError && err.code !== 'INSUFFICIENT_STOCK' && err.code !== 'VALIDATION_FAILED' ? err.message : null;
 
   return (
     <Modal open onOpenChange={(open) => !open && onClose()} title="New order" description="Stock is reserved as soon as the order is placed." width={620}>

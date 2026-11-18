@@ -7,10 +7,9 @@ import type { Logger } from 'pino';
 import { AlertService, LowStockAlertListener } from './application/alerts';
 import { AuthService } from './application/auth-service';
 import { CategoryService, ProductService } from './application/catalog-service';
-import { IdempotencyService } from './application/idempotency-service';
 import { OrderService } from './application/order-service';
 import { type Clock, type RateLimiter, systemClock } from './application/ports';
-import type { IdempotencyRepository, SessionRepository } from './application/repositories';
+import type { SessionRepository } from './application/repositories';
 import { StockService } from './application/stock-service';
 import { UserService } from './application/user-service';
 import type { Config } from './config';
@@ -19,7 +18,6 @@ import { InProcessEventBus } from './infrastructure/event-bus';
 import { createLogger } from './infrastructure/logger';
 import { DrizzleAlertRepository } from './infrastructure/repositories/alert-repositories';
 import { DrizzleCategoryRepository, DrizzleProductRepository } from './infrastructure/repositories/catalog-repositories';
-import { DrizzleIdempotencyRepository } from './infrastructure/repositories/idempotency-repository';
 import { DrizzleOrderRepository } from './infrastructure/repositories/order-repositories';
 import { DrizzleStockLevelRepository, DrizzleStockMovementRepository } from './infrastructure/repositories/stock-repositories';
 import { DrizzleSessionRepository, DrizzleUserRepository } from './infrastructure/repositories/user-repositories';
@@ -39,10 +37,9 @@ export interface Container {
     stock: StockService;
     orders: OrderService;
     alerts: AlertService;
-    idempotency: IdempotencyService;
   };
   /** Repositories used by background housekeeping in main.ts. */
-  housekeeping: { sessions: SessionRepository; idempotency: IdempotencyRepository };
+  housekeeping: { sessions: SessionRepository };
 }
 
 export interface ContainerOverrides {
@@ -66,7 +63,6 @@ export function buildContainer(config: Config, overrides: ContainerOverrides = {
   const movements = new DrizzleStockMovementRepository(db);
   const orders = new DrizzleOrderRepository(db);
   const alerts = new DrizzleAlertRepository(db);
-  const idempotency = new DrizzleIdempotencyRepository(db);
 
   // Observer wiring.
   const bus = new InProcessEventBus(logger);
@@ -91,8 +87,7 @@ export function buildContainer(config: Config, overrides: ContainerOverrides = {
       stock: new StockService(tx, stockLevels, movements),
       orders: new OrderService(tx, orders, products),
       alerts: new AlertService(alerts, clock),
-      idempotency: new IdempotencyService(idempotency, clock),
     },
-    housekeeping: { sessions, idempotency },
+    housekeeping: { sessions },
   };
 }

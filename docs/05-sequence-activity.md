@@ -1,14 +1,12 @@
 # 5. Sequence and activity diagrams
 
-## 5.1 Place an order (reserve stock, idempotent)
+## 5.1 Place an order (reserve stock)
 
 ```mermaid
 sequenceDiagram
   autonumber
   actor U as Staff (browser)
   participant MW as Hono middleware<br/>(requestId, csrf, session, requireAuth)
-  participant IM as idempotent()
-  participant IS as IdempotencyService
   participant R as orderRoutes
   participant OS as OrderService
   participant TX as RetryingTransactionRunner
@@ -17,42 +15,30 @@ sequenceDiagram
   participant BUS as EventBus
   participant L as LowStockAlertListener
 
-  U->>MW: POST /api/orders {lines} + Idempotency-Key
-  MW->>IM: user loaded from session
-  IM->>IS: begin(userId, key, sha256(body))
-  IS->>DB: INSERT idempotency_keys ... ON CONFLICT DO NOTHING
-  alt key already DONE with same hash
-    IS-->>IM: replay
-    IM-->>U: stored 201 + Idempotent-Replayed: true
-  else same key, different body
-    IS-->>U: 422 IDEMPOTENCY_KEY_REUSED
-  else first time
-    IM->>R: next()
-    R->>R: zod validate body (400 on failure)
-    R->>OS: place(input, userId)
-    OS->>TX: run(work)
-    TX->>DT: run(work)
-    DT->>DB: BEGIN
-    OS->>DB: SELECT products WHERE id IN (...)
-    OS->>DB: SELECT stock_levels ... ORDER BY product_id FOR UPDATE
-    loop each line
-      OS->>OS: level.reserve(qty)
-    end
-    alt a line is short
-      OS-->>DT: throw InsufficientStockError
-      DT->>DB: ROLLBACK
-      R-->>U: 409 INSUFFICIENT_STOCK {productId, requested, available}
-    else all reserved
-      OS->>DB: nextval(order_number_seq), INSERT orders, order_lines
-      OS->>DB: UPDATE stock_levels (reserved)
-      OS->>OS: uow.record(LowStockEvent | StockReplenishedEvent)
-      DT->>DB: COMMIT
-      DT->>BUS: publish(events)
-      BUS->>L: onLowStock → INSERT alert ON CONFLICT DO NOTHING
-      R-->>IM: 201 {order}
-      IM->>IS: complete(status, body)
-      IM-->>U: 201 {order}
-    end
+  U->>MW: POST /api/orders {lines}
+  MW->>R: user loaded from session
+  R->>R: zod validate body (400 on failure)
+  R->>OS: place(input, userId)
+  OS->>TX: run(work)
+  TX->>DT: run(work)
+  DT->>DB: BEGIN
+  OS->>DB: SELECT products WHERE id IN (...)
+  OS->>DB: SELECT stock_levels ... ORDER BY product_id FOR UPDATE
+  loop each line
+    OS->>OS: level.reserve(qty)
+  end
+  alt a line is short
+    OS-->>DT: throw InsufficientStockError
+    DT->>DB: ROLLBACK
+    R-->>U: 409 INSUFFICIENT_STOCK {productId, requested, available}
+  else all reserved
+    OS->>DB: nextval(order_number_seq), INSERT orders, order_lines
+    OS->>DB: UPDATE stock_levels (reserved)
+    OS->>OS: uow.record(LowStockEvent | StockReplenishedEvent)
+    DT->>DB: COMMIT
+    DT->>BUS: publish(events)
+    BUS->>L: onLowStock → INSERT alert ON CONFLICT DO NOTHING
+    R-->>U: 201 {order}
   end
   Note over TX,DT: On deadlock (40P01) / serialization (40001)<br/>the whole run() is retried with jittered backoff (max 3).
 ```
@@ -123,12 +109,8 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-  start([Staff submits order]) --> key{Idempotency-Key<br/>seen before?}
-  key -- same body, done --> replay[Return stored response] --> done([End])
-  key -- different body --> e422[422] --> done
-  key -- in progress --> e409a[409 in progress] --> done
-  key -- new --> valid{Body valid?}
-  valid -- no --> e400[400 with field errors] --> done
+  start([Staff submits order]) --> valid{Body valid?}
+  valid -- no --> e400[400 with field errors] --> done([End])
   valid -- yes --> lock[Lock stock rows<br/>sorted by product id]
   lock --> enough{Every line has<br/>enough available?}
   enough -- no --> rollback[Roll back everything] --> e409[409 INSUFFICIENT_STOCK<br/>on the short line] --> done

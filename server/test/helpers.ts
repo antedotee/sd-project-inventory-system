@@ -17,7 +17,7 @@ export function makeTestApp(overrides: ContainerOverrides = {}): TestContext {
 /** Empties every table. TRUNCATE does not fire the ledger's row-level DELETE trigger. */
 export async function resetDb(ctx: TestContext) {
   await ctx.container.database.db.execute(sql`
-    TRUNCATE idempotency_keys, low_stock_alerts, order_lines, orders, stock_movements,
+    TRUNCATE low_stock_alerts, order_lines, orders, stock_movements,
              stock_levels, products, categories, sessions, users RESTART IDENTITY CASCADE`);
 }
 
@@ -87,8 +87,4 @@ export async function receive(ctx: TestContext, cookie: string, productId: strin
   const res = await call(ctx, 'POST', '/api/stock/receipts', { cookie, body: { productId, quantity } });
   if (res.status !== 201) throw new Error(`receive failed: ${JSON.stringify(res.json)}`);
   return res.json;
-}
-
-export function idemKey() {
-  return `test-${crypto.randomUUID()}`;
 }

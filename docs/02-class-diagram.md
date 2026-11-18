@@ -35,16 +35,9 @@ classDiagram
     +reorderPolicy: ReorderPolicy
     +active: boolean
     +version: int
+    +static create(fields) Product
+    +with(patch) Product
     +isLowOnStock(available) boolean
-  }
-
-  class ProductBuilder {
-    +static from(product) ProductBuilder
-    +sku(s) ProductBuilder
-    +name(n) ProductBuilder
-    +unitPriceCents(c) ProductBuilder
-    +reorderPolicy(p) ProductBuilder
-    +build() Product
   }
 
   class ReorderPolicy {
@@ -153,7 +146,6 @@ classDiagram
   User "1" --> "0..*" Order : creates
   User "1" --> "0..*" StockMovement : records
   Product "1" -- "0..1" LowStockAlert : open alert
-  ProductBuilder ..> Product : builds
   StockMovementFactory ..> StockMovement : creates
   StockLevel ..> StockMovement : applies
 ```
@@ -235,7 +227,6 @@ classDiagram
   class OrderService
   class AlertService
   class LowStockAlertListener
-  class IdempotencyService
 
   TransactionRunner <|.. DrizzleTransactionRunner
   TransactionRunner <|.. RetryingTransactionRunner

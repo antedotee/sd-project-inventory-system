@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import type { ProductRepository } from '../../src/application/repositories';
 import { DuplicateError } from '../../src/domain/errors';
-import { ProductBuilder } from '../../src/domain/product';
+import { Product } from '../../src/domain/product';
 import { InMemoryProductRepository } from '../../src/infrastructure/memory/in-memory-repositories';
 import { DrizzleProductRepository } from '../../src/infrastructure/repositories/catalog-repositories';
 import { makeTestApp, resetDb } from '../helpers';
@@ -23,7 +23,7 @@ const implementations: [string, () => Promise<ProductRepository>][] = [
   ],
 ];
 
-const product = (sku: string, name: string) => new ProductBuilder().sku(sku).name(name).unitPriceCents(100).build();
+const product = (sku: string, name: string) => Product.create({ sku, name, unitPriceCents: 100 });
 
 for (const [label, make] of implementations) {
   describe(`ProductRepository contract: ${label}`, () => {
@@ -47,17 +47,17 @@ for (const [label, make] of implementations) {
 
     test('update with the current version bumps it; a stale version returns null', async () => {
       const p = await repo.create(product('VER-1', 'Old'));
-      const updated = await repo.update(ProductBuilder.from(p).name('New').build(), 1);
+      const updated = await repo.update(p.with({ name: 'New' }), 1);
       expect(updated?.version).toBe(2);
       expect(updated?.name).toBe('New');
-      expect(await repo.update(ProductBuilder.from(p).name('Stale').build(), 1)).toBeNull();
+      expect(await repo.update(p.with({ name: 'Stale' }), 1)).toBeNull();
     });
 
     test('search filters by text, hides inactive, sorts by name and paginates', async () => {
       await repo.create(product('C-1', 'Cable'));
       await repo.create(product('A-1', 'Anchor'));
       const hidden = await repo.create(product('B-1', 'Bracket'));
-      await repo.update(ProductBuilder.from(hidden).active(false).build(), 1);
+      await repo.update(hidden.with({ active: false }), 1);
 
       const all = await repo.search({}, { page: 1, pageSize: 10 });
       expect(all.items.map((p) => p.name)).toEqual(['Anchor', 'Cable']);

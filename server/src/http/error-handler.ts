@@ -13,7 +13,6 @@ const STATUS_BY_KIND: Record<ErrorKind, ContentfulStatusCode> = {
   forbidden: 403,
   not_found: 404,
   conflict: 409,
-  unprocessable: 422,
   rate_limited: 429,
 };
 

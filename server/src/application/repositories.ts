@@ -127,25 +127,3 @@ export interface AlertRepository {
   acknowledge(id: string, userId: string, at: Date): Promise<LowStockAlert | null>;
   countOpen(): Promise<number>;
 }
-
-export interface IdempotencyRecord {
-  userId: string;
-  key: string;
-  requestHash: string;
-  status: 'IN_PROGRESS' | 'DONE';
-  responseStatus: number | null;
-  responseBody: unknown;
-  createdAt: Date;
-}
-
-export type BeginResult = { kind: 'started' } | { kind: 'existing'; record: IdempotencyRecord };
-
-export interface IdempotencyRepository {
-  /** Atomically claims the key. If it exists, returns the stored record instead. */
-  begin(userId: string, key: string, requestHash: string, now: Date): Promise<BeginResult>;
-  /** Takes over a key whose IN_PROGRESS claim is older than `staleBefore` (crashed request). */
-  reclaimStale(userId: string, key: string, staleBefore: Date, now: Date): Promise<boolean>;
-  complete(userId: string, key: string, responseStatus: number, responseBody: unknown): Promise<void>;
-  discard(userId: string, key: string): Promise<void>;
-  deleteOlderThan(cutoff: Date): Promise<number>;
-}

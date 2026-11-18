@@ -1,7 +1,7 @@
 import { Category } from '../domain/category';
 import { NotFoundError, VersionConflictError } from '../domain/errors';
 import { newId } from '../domain/id';
-import { type Product, ProductBuilder } from '../domain/product';
+import { Product } from '../domain/product';
 import { type ReorderPolicyConfig, reorderPolicyFrom } from '../domain/reorder-policy';
 import { StockLevel } from '../domain/stock-level';
 import type { Page, PageRequest } from './pagination';
@@ -52,14 +52,14 @@ export class ProductService {
   /** Creates the product and its (empty) stock level in one transaction. */
   async create(input: ProductInput): Promise<Product> {
     await this.assertCategoryExists(input.categoryId);
-    const product = new ProductBuilder()
-      .sku(input.sku)
-      .name(input.name)
-      .description(input.description ?? '')
-      .category(input.categoryId ?? null)
-      .unitPriceCents(input.unitPriceCents)
-      .reorderPolicy(reorderPolicyFrom(input.reorderPolicy))
-      .build();
+    const product = Product.create({
+      sku: input.sku,
+      name: input.name,
+      description: input.description,
+      categoryId: input.categoryId,
+      unitPriceCents: input.unitPriceCents,
+      reorderPolicy: reorderPolicyFrom(input.reorderPolicy),
+    });
 
     return this.tx.run(async (uow) => {
       const saved = await uow.products.create(product);
@@ -74,14 +74,16 @@ export class ProductService {
     if (current.version !== expectedVersion) throw new VersionConflictError('Product', id);
     if (patch.categoryId !== undefined) await this.assertCategoryExists(patch.categoryId);
 
-    const b = ProductBuilder.from(current);
-    if (patch.name !== undefined) b.name(patch.name);
-    if (patch.description !== undefined) b.description(patch.description);
-    if (patch.categoryId !== undefined) b.category(patch.categoryId);
-    if (patch.unitPriceCents !== undefined) b.unitPriceCents(patch.unitPriceCents);
-    if (patch.reorderPolicy !== undefined) b.reorderPolicy(reorderPolicyFrom(patch.reorderPolicy));
-
-    const saved = await this.products.update(b.build(), expectedVersion);
+    const saved = await this.products.update(
+      current.with({
+        name: patch.name,
+        description: patch.description,
+        categoryId: patch.categoryId,
+        unitPriceCents: patch.unitPriceCents,
+        reorderPolicy: patch.reorderPolicy && reorderPolicyFrom(patch.reorderPolicy),
+      }),
+      expectedVersion,
+    );
     if (!saved) throw new VersionConflictError('Product', id);
     return saved;
   }
@@ -89,7 +91,7 @@ export class ProductService {
   /** Soft delete: order history and the ledger keep pointing at the product. */
   async deactivate(id: string): Promise<Product> {
     const current = await this.get(id);
-    const saved = await this.products.update(ProductBuilder.from(current).active(false).build(), current.version);
+    const saved = await this.products.update(current.with({ active: false }), current.version);
     if (!saved) throw new VersionConflictError('Product', id);
     return saved;
   }

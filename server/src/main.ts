@@ -15,13 +15,11 @@ const app = createApp(container);
 const server = Bun.serve({ port: config.PORT, fetch: app.fetch });
 logger.info({ port: server.port, env: config.NODE_ENV }, 'StockPilot API listening');
 
-// Housekeeping: drop expired sessions and idempotency keys older than 24h.
+// Housekeeping: drop expired sessions.
 const housekeepingTimer = setInterval(async () => {
   try {
-    const now = new Date();
-    const sessions = await housekeeping.sessions.deleteExpired(now);
-    const keys = await housekeeping.idempotency.deleteOlderThan(new Date(now.getTime() - 24 * 3_600_000));
-    if (sessions || keys) logger.info({ sessions, keys }, 'housekeeping removed expired rows');
+    const sessions = await housekeeping.sessions.deleteExpired(new Date());
+    if (sessions) logger.info({ sessions }, 'housekeeping removed expired sessions');
   } catch (err) {
     logger.error({ err }, 'housekeeping failed');
   }

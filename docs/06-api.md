@@ -41,7 +41,7 @@ Errors from any layer go up to `app.onError` (`http/error-handler.ts`).
 | `GET /stock/:productId/movements` | any | `page, pageSize` | 200 page of Movement | 404 |
 | `POST /stock/receipts` | any | `{productId, quantity ≥1, note?}` | 201 StockChange | 400, 404 |
 | `POST /stock/adjustments` | ADMIN | `{productId, delta ≠0, reason (≥3)}` | 201 StockChange | 400, 403, 404, 409 `INSUFFICIENT_STOCK` |
-| `POST /orders` | any | header `Idempotency-Key`; `{lines:[{productId, quantity}]}` (1–50 lines) | 201 Order | 400, 404, 409 `INSUFFICIENT_STOCK` / `IDEMPOTENCY_IN_PROGRESS`, 422 `IDEMPOTENCY_KEY_REUSED` |
+| `POST /orders` | any | `{lines:[{productId, quantity}]}` (1–50 lines) | 201 Order | 400, 404, 409 `INSUFFICIENT_STOCK` |
 | `GET /orders` | any | `status, page, pageSize` | 200 page of OrderSummary | 400 |
 | `GET /orders/:id` | any | n/a | 200 Order (lines include sku/name) | 404 |
 | `POST /orders/:id/fulfil` | any | n/a | 200 Order | 404, 409 `INVALID_STATE_TRANSITION` |
@@ -70,7 +70,6 @@ Content-Type: application/json
 **Place an order (and a short line)**
 ```http
 POST /api/orders
-Idempotency-Key: 6c0b0b6e-9a55-4d1e-9a8a-0d8f3c1b2a11
 
 { "lines": [ { "productId": "01a1…", "quantity": 4 } ] }
 ```
@@ -123,5 +122,4 @@ OrderService.fulfil(orderId, actorId): Promise<Order>
 OrderService.cancel(orderId): Promise<Order>
 OrderService.list(filter, page) / get(id)
 AlertService.list(filter, page) / countOpen() / acknowledge(id, userId)
-IdempotencyService.begin(userId, key, hash): Promise<{kind:'execute'} | {kind:'replay', status, body}>
 ```

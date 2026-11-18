@@ -8,7 +8,7 @@ StockPilot tracks stock for one warehouse: what is on the shelf, what is promise
 |---|---|---|
 | **Staff** | Warehouse / counter worker | Sign in, view stock and history, receive deliveries, place / fulfil / cancel orders, view and acknowledge alerts |
 | **Admin** | Manager | Everything Staff can, plus: manage products and categories, adjust stock (corrections), create users |
-| **System** | The EventBus listener and housekeeping timer | Open/resolve low-stock alerts after stock changes; delete expired sessions and idempotency keys |
+| **System** | The EventBus listener and housekeeping timer | Open/resolve low-stock alerts after stock changes; delete expired sessions |
 
 ## Functional requirements
 
@@ -30,13 +30,12 @@ StockPilot tracks stock for one warehouse: what is on the shelf, what is promise
 | ID | Requirement | How it is met |
 |---|---|---|
 | N1 | **No overselling** under concurrent requests | Row locks (`SELECT … FOR UPDATE`) in sorted order + domain check + DB `CHECK` constraints. Proven by the 50-parallel-orders test. |
-| N2 | **Idempotent order creation** | `Idempotency-Key` header, stored per user with a request hash. |
-| N3 | **Auditability** | Append-only `stock_movements` (DB trigger); ledger sum equals on-hand. |
-| N4 | **Consistent errors** | One error shape `{ error: { code, message, details?, requestId } }`; one mapping table. |
-| N5 | **Security** | argon2id passwords, hashed session tokens, httpOnly/SameSite/`__Host-` cookies, CSRF Origin check, CSP + security headers, login rate limit, body-size limit, role checks on the server. |
-| N6 | **Fail fast** | Config validated with zod at startup. |
-| N7 | **Operability** | Structured JSON logs with request IDs, `/api/health`, graceful shutdown, migrations on start. |
-| N8 | **Performance**: p95 < 200 ms on seed data | Indexed reads, paginated lists (max 100). Measured locally (10 concurrent clients, seed data, M-series Mac): reads p50 8 ms / p95 15 ms; receipts p50 22 ms / p95 43 ms. Login takes about 100 ms on purpose (argon2id). |
+| N2 | **Auditability** | Append-only `stock_movements` (DB trigger); ledger sum equals on-hand. |
+| N3 | **Consistent errors** | One error shape `{ error: { code, message, details?, requestId } }`; one mapping table. |
+| N4 | **Security** | argon2id passwords, hashed session tokens, httpOnly/SameSite/`__Host-` cookies, CSRF Origin check, CSP + security headers, login rate limit, body-size limit, role checks on the server. |
+| N5 | **Fail fast** | Config validated with zod at startup. |
+| N6 | **Operability** | Structured JSON logs with request IDs, `/api/health`, graceful shutdown, migrations on start. |
+| N7 | **Performance**: p95 < 200 ms on seed data | Indexed reads, paginated lists (max 100). Measured locally (10 concurrent clients, seed data, M-series Mac): reads p50 8 ms / p95 15 ms; receipts p50 22 ms / p95 43 ms. Login takes about 100 ms on purpose (argon2id). |
 
 ## Use cases
 
@@ -71,9 +70,9 @@ flowchart LR
 
 ### Main use case: UC5 Place order
 - **Actor:** Staff (or Admin). **Precondition:** signed in.
-- **Main flow:** choose products and quantities → submit with an Idempotency-Key → system locks the stock rows, reserves each line, saves the order as RESERVED → returns the order.
-- **Alternative flows:** a line is short → 409 `INSUFFICIENT_STOCK` with `{productId, requested, available}`, nothing saved. Same request retried → stored response replayed. Same key, different body → 422. Product unknown/inactive → 404. Invalid input → 400 with field errors.
+- **Main flow:** choose products and quantities → system locks the stock rows, reserves each line, saves the order as RESERVED → returns the order.
+- **Alternative flows:** a line is short → 409 `INSUFFICIENT_STOCK` with `{productId, requested, available}`, nothing saved. Product unknown/inactive → 404. Invalid input → 400 with field errors.
 - **Postcondition:** reserved quantities increased; low-stock alert opened if a product dropped to its threshold.
 
 ### Out of scope (deliberately)
-Multiple warehouses, transfers, suppliers/purchase orders, user-management screens, password reset.
+Multiple warehouses, transfers, suppliers/purchase orders, user-management screens, password reset, idempotency keys.

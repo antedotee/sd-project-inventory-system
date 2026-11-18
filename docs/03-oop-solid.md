@@ -7,7 +7,7 @@ Paths are relative to `server/src/`.
 | Pillar | Where | What to point at |
 |---|---|---|
 | **Abstraction** | `domain/stock-movement.ts` (`abstract class StockMovement`, `abstract delta()`), `application/ports.ts` (`TransactionRunner`, `EventBus`, `PasswordHasher`, `RateLimiter`), `application/repositories.ts` | Services talk to "a repository" or "a transaction runner", never to Drizzle or Postgres. |
-| **Encapsulation** | `domain/stock-level.ts` | `_onHand` / `_reserved` are private; they only change through `reserve`, `release`, `commitReservation`, `apply`, which keep `0 ≤ reserved ≤ onHand`. `domain/order.ts`: `_status` only changes via `fulfil()`/`cancel()` through the transition table. `domain/product.ts`: immutable; changes go through `ProductBuilder`, which re-validates. |
+| **Encapsulation** | `domain/stock-level.ts` | `_onHand` / `_reserved` are private; they only change through `reserve`, `release`, `commitReservation`, `apply`, which keep `0 ≤ reserved ≤ onHand`. `domain/order.ts`: `_status` only changes via `fulfil()`/`cancel()` through the transition table. `domain/product.ts`: immutable; changes go through `Product.with()`, which re-validates. |
 | **Inheritance** | `ReceiptMovement`, `SaleMovement`, `AdjustmentMovement extends StockMovement`; `InvalidCredentialsError extends UnauthenticatedError extends AppError`; all errors extend `AppError` (`domain/errors.ts`) | Subclasses override `validate()` and call `super.validate()`. |
 | **Polymorphism** | `StockLevel.apply(movement)` calls `movement.delta()` without knowing the subclass. `Product.isLowOnStock()` calls whichever `ReorderPolicy` it holds. `http/error-handler.ts` maps any `AppError` by its `kind`. | |
 
@@ -40,7 +40,7 @@ Paths are relative to `server/src/`.
 
 ### I: Interface Segregation
 - `StockLevelReader` (find, list) and `StockLevelWriter` (create, lockForUpdate, save) are separate (`application/repositories.ts`). `StockService` receives only a `StockLevelReader` for its reads; writes happen only through the `UnitOfWork` inside a transaction.
-- Route factories receive only the services they use: `orderRoutes(orders, idempotency)`, `stockRoutes(stock)`, and so on.
+- Route factories receive only the services they use: `orderRoutes(orders)`, `stockRoutes(stock)`, and so on.
 - `AuthService` needs `PasswordHasher`, `RateLimiter` and `Clock`: three small ports instead of one "security" god-interface.
 
 ### D: Dependency Inversion

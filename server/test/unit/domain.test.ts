@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { InsufficientStockError, InvalidStateTransitionError, ValidationError } from '../../src/domain/errors';
 import { Order, OrderLine } from '../../src/domain/order';
-import { ProductBuilder } from '../../src/domain/product';
+import { Product } from '../../src/domain/product';
 import { FixedThresholdPolicy, PercentageOfMaxPolicy } from '../../src/domain/reorder-policy';
 import { StockLevel } from '../../src/domain/stock-level';
 import {
@@ -118,18 +118,18 @@ describe('Order state machine', () => {
   });
 });
 
-describe('ProductBuilder', () => {
-  test('builds a valid product and normalises the SKU', () => {
-    const p = new ProductBuilder().sku(' bolt-m8 ').name(' M8 bolt ').unitPriceCents(25).build();
+describe('Product.create', () => {
+  test('creates a valid product and normalises the SKU', () => {
+    const p = Product.create({ sku: ' bolt-m8 ', name: ' M8 bolt ', unitPriceCents: 25 });
     expect(p.sku).toBe('BOLT-M8');
     expect(p.name).toBe('M8 bolt');
     expect(p.version).toBe(1);
   });
 
-  test('build() reports every invalid field at once', () => {
+  test('create() reports every invalid field at once', () => {
     try {
-      new ProductBuilder().sku('!').unitPriceCents(-1).build();
-      throw new Error('expected build() to fail');
+      Product.create({ sku: '!', name: '', unitPriceCents: -1 });
+      throw new Error('expected create() to fail');
     } catch (err) {
       expect(err).toBeInstanceOf(ValidationError);
       const fields = (err as ValidationError).details as { fields: Record<string, string> };
@@ -137,9 +137,9 @@ describe('ProductBuilder', () => {
     }
   });
 
-  test('from() keeps identity and applies changes', () => {
-    const p = new ProductBuilder().sku('A-1').name('A').build();
-    const q = ProductBuilder.from(p).name('B').build();
+  test('with() keeps identity and applies changes', () => {
+    const p = Product.create({ sku: 'A-1', name: 'A' });
+    const q = p.with({ name: 'B' });
     expect(q.id).toBe(p.id);
     expect(q.name).toBe('B');
   });
@@ -160,7 +160,7 @@ describe('ReorderPolicy strategies', () => {
   });
 
   test('product delegates to its strategy', () => {
-    const p = new ProductBuilder().sku('A-1').name('A').reorderPolicy(new PercentageOfMaxPolicy(100, 10)).build();
+    const p = Product.create({ sku: 'A-1', name: 'A', reorderPolicy: new PercentageOfMaxPolicy(100, 10) });
     expect(p.isLowOnStock(10)).toBe(true);
     expect(p.isLowOnStock(11)).toBe(false);
   });

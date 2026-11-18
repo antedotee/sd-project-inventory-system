@@ -2,7 +2,6 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test } from 'vitest';
 import { navItemsFor, Sidebar } from '../components/app-shell';
-import { IdempotentSubmission } from '../lib/idempotency';
 import { LoginPage } from '../pages/login-page';
 import { NewOrderDialog } from '../pages/orders-page';
 import { ProductDialog } from '../pages/products-page';
@@ -16,24 +15,6 @@ const stockPage = {
   pageSize: 100,
   total: 1,
 };
-
-describe('IdempotentSubmission', () => {
-  test('reuses the key for a retry of the same payload', () => {
-    let n = 0;
-    const s = new IdempotentSubmission(() => `k${++n}`);
-    expect(s.keyFor({ a: 1 })).toBe('k1');
-    expect(s.keyFor({ a: 1 })).toBe('k1');
-  });
-
-  test('a changed payload or a settled answer gets a new key', () => {
-    let n = 0;
-    const s = new IdempotentSubmission(() => `k${++n}`);
-    s.keyFor({ a: 1 });
-    expect(s.keyFor({ a: 2 })).toBe('k2');
-    s.settle();
-    expect(s.keyFor({ a: 2 })).toBe('k3');
-  });
-});
 
 describe('login', () => {
   test('shows the server message next to the form on bad credentials', async () => {
@@ -86,9 +67,9 @@ describe('placing an order', () => {
     await userEvent.type(qty, quantity);
   }
 
-  test('a retry after a network error reuses the same Idempotency-Key', async () => {
+  test('a network error is shown, and pressing again places the order', async () => {
     let attempt = 0;
-    const calls = mockFetch({
+    mockFetch({
       'GET /auth/me': () => json(200, { user: staffUser }),
       'GET /stock': () => json(200, stockPage),
       'POST /orders': () =>
@@ -101,14 +82,9 @@ describe('placing an order', () => {
     await fillOrder('2');
 
     await userEvent.click(screen.getByRole('button', { name: 'Place order' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('not duplicated');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not reach the server');
     await userEvent.click(screen.getByRole('button', { name: 'Place order' }));
     await waitFor(() => expect(created).toBe(true));
-
-    const keys = calls.filter((c) => c.path === '/orders').map((c) => c.headers['Idempotency-Key']);
-    expect(keys).toHaveLength(2);
-    expect(keys[0]).toBeTruthy();
-    expect(keys[1]).toBe(keys[0]);
   });
 
   test('INSUFFICIENT_STOCK (409) is shown on the line it concerns', async () => {

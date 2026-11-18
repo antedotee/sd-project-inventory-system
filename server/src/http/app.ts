@@ -75,7 +75,7 @@ export function createApp(container: Container) {
   api.route('/categories', categoryRoutes(services.categories));
   api.route('/products', productRoutes(services.products));
   api.route('/stock', stockRoutes(services.stock));
-  api.route('/orders', orderRoutes(services.orders, services.idempotency));
+  api.route('/orders', orderRoutes(services.orders));
   api.route('/alerts', alertRoutes(services.alerts));
   api.all('*', (c) => {
     throw new NotFoundError('Route', `${c.req.method} ${c.req.path}`);

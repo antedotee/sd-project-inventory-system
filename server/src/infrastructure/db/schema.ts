@@ -8,7 +8,6 @@ import {
   check,
   index,
   integer,
-  jsonb,
   pgEnum,
   pgSequence,
   pgTable,
@@ -27,7 +26,6 @@ export const movementTypeEnum = pgEnum('movement_type', ['RECEIPT', 'SALE', 'ADJ
 export const referenceTypeEnum = pgEnum('movement_reference_type', ['ORDER', 'MANUAL']);
 export const orderStatusEnum = pgEnum('order_status', ['RESERVED', 'FULFILLED', 'CANCELLED']);
 export const alertStatusEnum = pgEnum('alert_status', ['OPEN', 'RESOLVED']);
-export const idempotencyStatusEnum = pgEnum('idempotency_status', ['IN_PROGRESS', 'DONE']);
 
 export const orderNumberSeq = pgSequence('order_number_seq', { startWith: 1000 });
 
@@ -202,20 +200,4 @@ export const lowStockAlerts = pgTable(
     uniqueIndex('alerts_one_open_per_product_uq').on(t.productId).where(sql`${t.status} = 'OPEN'`),
     index('alerts_status_created_idx').on(t.status, t.createdAt),
   ],
-);
-
-export const idempotencyKeys = pgTable(
-  'idempotency_keys',
-  {
-    userId: uuid('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    key: text('key').notNull(),
-    requestHash: text('request_hash').notNull(),
-    status: idempotencyStatusEnum('status').notNull(),
-    responseStatus: integer('response_status'),
-    responseBody: jsonb('response_body'),
-    createdAt: createdAt(),
-  },
-  (t) => [primaryKey({ columns: [t.userId, t.key] }), index('idempotency_created_idx').on(t.createdAt)],
 );

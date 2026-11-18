@@ -1,6 +1,6 @@
 # StockPilot
 
-A small inventory management system for one warehouse. It tracks products and stock levels, reserves stock for orders, keeps an append-only stock ledger, and raises low-stock alerts. It is built to stay correct under concurrent requests, retries and bad input.
+A small inventory management system for one warehouse. It tracks products and stock levels, reserves stock for orders, keeps an append-only stock ledger, and raises low-stock alerts. It is built to stay correct under concurrent requests and bad input.
 
 - **Server:** Bun, Hono, zod, Drizzle ORM, PostgreSQL 16
 - **Web:** React 19, Vite, Tailwind CSS v4, TanStack Query, Base UI

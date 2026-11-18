@@ -5,8 +5,8 @@
 | Layer | Checks | Example |
 |---|---|---|
 | HTTP boundary (`http/schemas.ts`, zod) | Shape, types, ranges, required fields, UUID format | `quantity` must be an integer 1–10,000; `delta ≠ 0` |
-| Middleware | Auth, role, CSRF, body size, Idempotency-Key format | 401 / 403 / 413 / 400 |
-| Domain (`domain/*.ts`) | Business rules | `StockLevel.reserve` refuses more than available; `Order` transition table; `ProductBuilder` SKU rule |
+| Middleware | Auth, role, CSRF, body size | 401 / 403 / 413 |
+| Domain (`domain/*.ts`) | Business rules | `StockLevel.reserve` refuses more than available; `Order` transition table; `Product.create` SKU rule |
 | Database | Last line of defence | `CHECK (reserved <= on_hand)`, unique SKU, append-only trigger, one OPEN alert per product |
 
 Each rule is enforced at the highest layer that can give a precise message, and repeated in the database where data integrity depends on it.
@@ -25,9 +25,7 @@ Each rule is enforced at the highest layer that can give a precise message, and 
 | `VersionConflictError` | conflict | 409 | `VERSION_CONFLICT` |
 | `InsufficientStockError` | conflict | 409 | `INSUFFICIENT_STOCK` |
 | `InvalidStateTransitionError` | conflict | 409 | `INVALID_STATE_TRANSITION` |
-| `IdempotencyInProgressError` | conflict | 409 | `IDEMPOTENCY_IN_PROGRESS` |
 | Postgres `23514` / `23503` | n/a | 409 | `CONSTRAINT_VIOLATION` / `REFERENCE_VIOLATION` |
-| `IdempotencyKeyMismatchError` | unprocessable | 422 | `IDEMPOTENCY_KEY_REUSED` |
 | `RateLimitedError` | rate_limited | 429 + `Retry-After` | `RATE_LIMITED` |
 | anything else | n/a | 500 | `INTERNAL`: logged with requestId and stack; the response has no internals |
 
@@ -53,7 +51,6 @@ Tested exhaustively in `server/test/integration/http-basics.test.ts`.
 | A listener throws after commit | Logged; request still succeeds; other listeners still run | `infrastructure.test.ts` |
 | Transaction fails after recording an event | Rolled back, **no** alert created | `stock-and-alerts.test.ts` |
 | Deadlock / serialization failure | Retried up to 3× with jittered backoff; other errors are not retried | `infrastructure.test.ts` |
-| Request crashes mid-idempotent call | 5xx → key discarded so the client can retry; a claim left IN_PROGRESS for over 60 s is taken over | `idempotency-service.ts` |
 | DB down | `/api/health` → 500; container healthcheck fails | n/a |
 | Bad configuration | Process exits at start with a list of invalid variables | `config.ts` |
 | Code bypassing the app edits the ledger or breaks stock rules | Trigger / CHECK constraint rejects it | `stock-and-alerts.test.ts` |
@@ -65,9 +62,6 @@ Tested exhaustively in `server/test/integration/http-basics.test.ts`.
 | Multi-line orders locking products in opposite order | all succeed, no deadlock (sorted locks) | `orders.test.ts` |
 | One line short in a multi-line order | whole order rolled back | `orders.test.ts` |
 | Fulfil and cancel racing on one order | exactly one wins, the other 409 | `orders.test.ts` |
-| Same Idempotency-Key sent 3× at once | reserved exactly once; others 201 replay or 409 in-progress | `orders.test.ts` |
-| Retry with the same key | same order, stock reserved once, `Idempotent-Replayed: true` | `orders.test.ts` |
-| Same key, different body | 422 | `orders.test.ts` |
 | Two admins edit the same product version | one 200, others 409 `VERSION_CONFLICT`; UI offers "Load latest version" | `catalog.test.ts`, web `app.test.tsx` |
 | 25 concurrent receipts | on_hand = ledger sum = 50 | `stock-and-alerts.test.ts` |
 | Threshold crossed twice / concurrently | exactly one OPEN alert (partial unique index + `ON CONFLICT DO NOTHING`) | `stock-and-alerts.test.ts` |
@@ -86,6 +80,6 @@ Tested exhaustively in `server/test/integration/http-basics.test.ts`.
 - 401 anywhere → cache cleared, redirect to sign-in.
 - 400 field errors are shown under the matching input (`aria-invalid`, `aria-describedby`).
 - `INSUFFICIENT_STOCK` is shown on the order line it concerns.
-- Network error / 5xx on "Place order" keeps the same Idempotency-Key, so pressing again is a safe retry. A 4xx or a changed form gets a new key.
+- A network error on "Place order" is shown on the form. Pressing again sends a new order. The button stays disabled while a request is in flight.
 - `VERSION_CONFLICT` opens a dialog to load the latest version.
 - Queries retry only network/5xx failures, never 4xx.

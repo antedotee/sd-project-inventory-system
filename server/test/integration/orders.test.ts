@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import { sql } from 'drizzle-orm';
-import { call, createProduct, idemKey, loginAs, makeTestApp, receive, resetDb } from '../helpers';
+import { call, createProduct, loginAs, makeTestApp, receive, resetDb } from '../helpers';
 
 const ctx = makeTestApp();
 let admin: string;
@@ -12,8 +12,8 @@ beforeEach(async () => {
   staff = (await loginAs(ctx, 'STAFF')).cookie;
 });
 
-function placeOrder(lines: { productId: string; quantity: number }[], key = idemKey(), cookie = staff) {
-  return call(ctx, 'POST', '/api/orders', { cookie, body: { lines }, headers: { 'Idempotency-Key': key } });
+function placeOrder(lines: { productId: string; quantity: number }[], cookie = staff) {
+  return call(ctx, 'POST', '/api/orders', { cookie, body: { lines } });
 }
 
 async function level(productId: string) {
@@ -92,55 +92,6 @@ describe('placing orders', () => {
       ).status,
     ).toBe(400);
     expect((await placeOrder([{ productId: '00000000-0000-7000-8000-000000000000', quantity: 1 }])).status).toBe(404);
-  });
-});
-
-describe('idempotency', () => {
-  test('missing Idempotency-Key -> 400', async () => {
-    const p = await createProduct(ctx, admin);
-    const res = await call(ctx, 'POST', '/api/orders', { cookie: staff, body: { lines: [{ productId: p.id, quantity: 1 }] } });
-    expect(res.status).toBe(400);
-  });
-
-  test('a retried request returns the same order and reserves stock only once', async () => {
-    const p = await createProduct(ctx, admin);
-    await receive(ctx, staff, p.id, 10);
-    const key = idemKey();
-    const first = await placeOrder([{ productId: p.id, quantity: 3 }], key);
-    const retry = await placeOrder([{ productId: p.id, quantity: 3 }], key);
-    expect(retry.status).toBe(201);
-    expect(retry.json.id).toBe(first.json.id);
-    expect(retry.headers.get('idempotent-replayed')).toBe('true');
-    expect((await level(p.id)).reserved).toBe(3);
-  });
-
-  test('concurrent duplicates: one runs, the other is told it is in progress or gets the replay', async () => {
-    const p = await createProduct(ctx, admin);
-    await receive(ctx, staff, p.id, 10);
-    const key = idemKey();
-    const results = await Promise.all([1, 2, 3].map(() => placeOrder([{ productId: p.id, quantity: 1 }], key)));
-    for (const r of results) expect([201, 409]).toContain(r.status);
-    expect((await level(p.id)).reserved).toBe(1);
-  });
-
-  test('same key with a different body -> 422', async () => {
-    const p = await createProduct(ctx, admin);
-    await receive(ctx, staff, p.id, 10);
-    const key = idemKey();
-    await placeOrder([{ productId: p.id, quantity: 1 }], key);
-    const res = await placeOrder([{ productId: p.id, quantity: 2 }], key);
-    expect(res.status).toBe(422);
-    expect(res.json.error.code).toBe('IDEMPOTENCY_KEY_REUSED');
-  });
-
-  test('keys are scoped per user', async () => {
-    const p = await createProduct(ctx, admin);
-    await receive(ctx, staff, p.id, 10);
-    const key = idemKey();
-    await placeOrder([{ productId: p.id, quantity: 1 }], key, staff);
-    const other = await placeOrder([{ productId: p.id, quantity: 1 }], key, admin);
-    expect(other.status).toBe(201);
-    expect((await level(p.id)).reserved).toBe(2);
   });
 });
 

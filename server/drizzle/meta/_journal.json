@@ -15,6 +15,13 @@
       "when": 1794938931737,
       "tag": "0001_ledger_and_search",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794995584289,
+      "tag": "0002_drop_idempotency",
+      "breakpoints": true
     }
   ]
 }
